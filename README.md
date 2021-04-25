@@ -1,3 +1,4 @@
-# jobinterview
+# IMDB application
 imdb akka streams
-# add data files to resources folder
+# Add data files to resources folder
+add name.basics.tsv,title.basics.tsv,title.principals.tsv,title.ratings.tsv and title.episode.tsv to \imdb-application\src\main\resources folder
