@@ -5,22 +5,13 @@ import core.MovieService.{Principal, TvSeries}
 
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.actor.Status.{Failure, Success}
-import akka.stream.{ClosedShape, Materializer}
-import akka.stream.scaladsl.{Broadcast, FileIO, Flow, Framing, GraphDSL, Keep, RunnableGraph, Sink, Source}
-import akka.util.ByteString
-import org.imdb.app.utilities.{ApplicationConstants, ExceptionManager}
+import akka.stream.scaladsl.{Broadcast, Concat, FileIO, Flow, Framing, GraphDSL, Keep, Merge, RunnableGraph, Sink, Source}
+import org.imdb.app.utilities.{DBManager, ExceptionManager}
 
-import java.nio.file.Paths
-import scala.Option
-import scala.concurrent.ExecutionContext.Implicits.global
-import scala.concurrent.Future
-import scala.math.Numeric.BigDecimalAsIfIntegral.mkNumericOps
-import scala.util.Try
-import scala.collection.mutable.Map
 object MovieService extends App {
 
   final case class Principal(
+                              id:String,
                               name: String,
                               birthYear: Int,
                               deathYear: Option[Int],
@@ -32,18 +23,39 @@ object MovieService extends App {
                              genres: List[String])
 
 
-
+  final case class Episode(
+                            titleIdentifier: String,
+                            parentTitleIdentifier: String,
+                            seasonNum: Option[Int],
+                            episodeNum: Option[Int]
+                          )
+  case class Title(
+                    id: String,
+                    titleType: String,
+                    primaryTitle: String,
+                    originalTitle: String,
+                    isAdult: Boolean,
+                    startYear: Option[Short],
+                    endYear: Option[Short],
+                    genres: Vector[String]
+                  )
+  case class Work(
+                    tconst: String,
+                    ordering: Int,
+                    nconst: String,
+                    category: String,
+                    job: Option[String],
+                    characters: Vector[String]
+                  )
   try {
 
   implicit val system: ActorSystem = ActorSystem("IMDB")
-
-    var implementation = new MovieServiceImplementation
-    implementation.principalsForMovieName("Bohemios").runForeach(println)
-
-
-
+    var impl = new MovieServiceImplementation()
+    DBManager.createSchema
+    impl.insertPersons
+    println("hiii")
   } catch {
-   case e: Exception => ExceptionManager.logExceptionMessage(e,"Main Method")
+    case e : Exception => ExceptionManager.logExceptionMessage(this.getClass.getName,e,"main")
  }
 
 
@@ -55,3 +67,5 @@ trait MovieService {
   def principalsForMovieName(name: String): Source[Principal, _]
   def tvSeriesWithGreatestNumberOfEpisodes():Source[TvSeries, _]
 }
+
+object mat

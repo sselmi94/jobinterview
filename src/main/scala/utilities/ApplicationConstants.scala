@@ -9,4 +9,6 @@ object ApplicationConstants {
   final val TITLE_RATINGS_PATH = "src/main/resources/title.ratings.tsv"
 
 
+  final val chunkSize = 40000
+
 }
