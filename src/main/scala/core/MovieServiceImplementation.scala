@@ -1,11 +1,11 @@
 package org.imdb.app
 package core
 
-import akka.actor.{ActorSystem}
-import akka.stream.scaladsl.{ FileIO, Framing, Source}
+import akka.actor.ActorSystem
+import akka.stream.scaladsl.{FileIO, Framing, Source}
 import akka.util.ByteString
 import org.imdb.app.core.MovieService.{Principal, TvSeries}
-import org.imdb.app.utilities.ApplicationConstants
+import org.imdb.app.utilities.{ApplicationConstants, ExceptionManager}
 
 import java.nio.file.Paths
 import scala.collection.mutable.Map
@@ -62,6 +62,7 @@ class MovieServiceImplementation(implicit val system: ActorSystem) extends Movie
 
 
   def readFile(pathOfFile : String) = {
+
     FileIO.fromPath(Paths.get(pathOfFile),chunkSize = 4092)
         .via(Framing.delimiter(ByteString("\n"), Int.MaxValue,true).map(_.utf8String))
 
@@ -73,7 +74,12 @@ class MovieServiceImplementation(implicit val system: ActorSystem) extends Movie
     val src = io.Source.fromFile(path)
     try {
       src.getLines.find(_ => true)
-    } finally {
+    }
+    catch {
+      case e: Exception => { ExceptionManager.logExceptionMessage(e,"firstLine")
+      None}
+    }
+    finally {
       src.close()
     }
   }

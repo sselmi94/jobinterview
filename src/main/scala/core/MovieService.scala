@@ -37,28 +37,13 @@ object MovieService extends App {
 
   implicit val system: ActorSystem = ActorSystem("IMDB")
 
-
     var implementation = new MovieServiceImplementation
-    //implementation.readNameFile
     implementation.principalsForMovieName("Bohemios").runForeach(println)
 
 
-     // val sink1 = Sink.foreach(println)
-  //  val sink2 = Sink.fold[Int, ByteString](0)((acc, _) => acc + 1)
-
-
-
-    //implementation.readFile(ApplicationConstants.TITLE_PRINICPALS_PATH).filter(_(0).equals("tt0000502")).map(x => x.mkString(",")).runForeach(println)
-   /* var idMovie = implementation.readFile(ApplicationConstants.NAME_DATASET_PATH).map(line => line(0).toString)
-      //.filter(line => line(2).
-       // equals("Bohemios") && line(1).equals("movie")).map(line => line(0).toString)
-    // step 2 read
-    var result : Future[List[String]] = idMovie.runWith(Sink.collection[String,List[String]])
-  result.foreach(println)
-*/
 
   } catch {
-   case e: Exception => ExceptionManager.logExceptionMessage(e)
+   case e: Exception => ExceptionManager.logExceptionMessage(e,"Main Method")
  }
 
 
