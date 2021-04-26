@@ -169,7 +169,7 @@ f
   def insertWork(work: Seq[Option[Work]]) = {
     var f = Future {
       println("inserting")
-      var sql = s"INSERT INTO worked VALUES(?,?,?,?,?,?)"
+      var sql = s"INSERT OR IGNORE INTO worked VALUES(?,?,?,?,?,?)"
       work.map(line => DBManager.executeStatement(sql,line.get)).toSeq
 
     }
@@ -178,7 +178,7 @@ f
   def insertEpisode(episode: Seq[Option[Episode]]) = {
     var f = Future {
       println("inserting")
-      var sql = s"INSERT INTO episodes VALUES(?,?,?,?)"
+      var sql = s"INSERT OR IGNORE INTO episodes VALUES(?,?,?,?)"
       episode.map(line => DBManager.executeStatement(sql,line.get)).toSeq
 
     }

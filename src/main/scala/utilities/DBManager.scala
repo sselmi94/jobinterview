@@ -203,7 +203,7 @@ object DBManager{
   def doConnection() = {
     try {
       database =
-        DriverManager.getConnection("jdbc:sqlite:test.db")
+        DriverManager.getConnection("jdbc:sqlite:sample.db")
       createSchema
 
     } catch {
