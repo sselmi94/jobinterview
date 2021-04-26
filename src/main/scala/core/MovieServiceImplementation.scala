@@ -1,19 +1,20 @@
+/**
+ * selmi sameh
+ */
 package org.imdb.app
 package core
 
 import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.JavaFlowSupport.Sink
 import akka.stream.scaladsl.{FileIO, Framing, Source}
 import akka.util.ByteString
 import org.imdb.app.core.MovieService.{Episode, Principal, Title, TvSeries, Work}
 import org.imdb.app.utilities.{ApplicationConstants, DBManager, ExceptionManager}
 
 import java.nio.file.Paths
-import scala.collection.immutable
-import scala.collection.mutable.Map
 import scala.concurrent.ExecutionContext.Implicits.global
 import scala.concurrent.Future
+import scala.util.Try
 class MovieServiceImplementation(implicit val system: ActorSystem) extends MovieService  {
 
 /*
@@ -46,13 +47,13 @@ class MovieServiceImplementation(implicit val system: ActorSystem) extends Movie
     })
   }*/
 
-  def principalsForMovieNameQuery(name: String) ={
+  def principalsForMovieNameQuery(name: String): List[Principal] ={
 
-    DBManager.getMovies(name)
+    DBManager.getPrinicpals(name).toList
   }
 
-  def titlesWithLargestEpisodeCount(limit: Int) = {
-    DBManager.getTitleWithLargestEpisode(limit)
+  def titlesWithLargestEpisodeCount(limit: Int):List[TvSeries] = {
+    DBManager.getTitleWithLargestEpisode(limit).toList
 
   }
 
@@ -65,12 +66,15 @@ class MovieServiceImplementation(implicit val system: ActorSystem) extends Movie
       )
       .flatMapConcat(Source(_))
 
-/*
-  def tvSeriesWithGreatestNumberOfEpisodes(limit: Int): Source[TitleWithEpisodeCount, NotUsed] =
-      Source.future(
-        titlesWithLargestEpisodeCount(limit)
-      ).flatMapConcat(Source(_)))
-}*/
+
+  def tvSeriesWithGreatestNumberOfEpisodes(): Source[TvSeries, NotUsed] = {
+      Source.
+        future(
+          Future {
+        titlesWithLargestEpisodeCount(10)}
+      ).flatMapConcat(Source(_))
+
+}
   def mapToPrincipal(splited: Array[String] ): Option[Principal] = {
     //split professions
     var professions = splited(4).split(",").toList
@@ -92,15 +96,27 @@ class MovieServiceImplementation(implicit val system: ActorSystem) extends Movie
   }
 
   def mapToTitle(splited: Array[String] ): Option[Title] = {
-    //split professions
-    var genres = splited(8).split(",").toVector
-    var startYear : Option[Short] = if (splited(5) == "\\N") None else Some(splited(5).toShort)
+    try {
 
-    var endYear = if (splited(6) == "\\N") None else Some(splited(6).toShort)
 
-    var originalTitle = splited(3)
-    //
-    Some(Title(splited(0),splited(1),splited(2),originalTitle,splited(4).toBoolean,startYear,endYear,genres))
+      //split professions
+      var genres = splited(8).split(",").toVector
+      var startYear: Option[Short] = if (splited(5) == "\\N") None else Some(splited(5).toShort)
+
+      var endYear = if (splited(6) == "\\N") None else Some(splited(6).toShort)
+
+      var originalTitle = splited(3)
+      var id = splited(0)
+      //
+      Some(Title(id, splited(1), splited(2), originalTitle, Try(splited(4).trim.toBoolean).getOrElse(false)
+
+        , startYear, endYear, genres))
+    }catch {
+      case  e : Exception => {
+        ExceptionManager.logExceptionMessage(this.getClass.getName,e,"maptotitle")
+        None
+      }
+    }
   }
   def mapToEpisode(splited: Array[String] ): Option[Episode] = {
     var season : Option[Int] = if (splited(2) == "\\N") None else Some(splited(2).toInt)
@@ -133,78 +149,95 @@ class MovieServiceImplementation(implicit val system: ActorSystem) extends Movie
     }
   }
 
-  def insertTitle(title: Option[Title]) = {
-    var sql = "INSERT OR IGNORE INTO titles VALUES(?,?,?,?,?,?,?,?)"
-    DBManager.executeStatement(sql,title.get)
-  }
-  def insertPerson(person: Option[Principal]) = {
-    var sql = s"INSERT INTO persons VALUES(?,?,?,?,?)"
+  def insertTitle(title: Seq[Option[Title]]) = {
+    var f = Future {
+      var sql = "INSERT OR IGNORE INTO titles VALUES(?,?,?,?,?,?,?,?)"
+      title.map(line => DBManager.executeStatement(sql,line.get)).toSeq
 
-    DBManager.executeStatement(sql,person.get)
+    }
+f
   }
-  def insertWork(work: Option[Work]) = {
-    var sql = s"INSERT INTO worked VALUES(?,?,?,?,?,?)"
+  def insertPerson(person: Seq[Option[Principal]]) = {
+    var f = Future {
+      var sql = s"INSERT OR IGNORE INTO persons VALUES(?,?,?,?,?)"
+      person.map(line => DBManager.executeStatement(sql,line.get)).toSeq
 
-    DBManager.executeStatement(sql,work.get)
+    }
+    f
+
   }
-  def insertEpisode(episode: Option[Episode]) = {
-    var sql = s"INSERT INTO episodes VALUES(?,?,?,?)"
+  def insertWork(work: Seq[Option[Work]]) = {
+    var f = Future {
+      println("inserting")
+      var sql = s"INSERT INTO worked VALUES(?,?,?,?,?,?)"
+      work.map(line => DBManager.executeStatement(sql,line.get)).toSeq
 
-    DBManager.executeStatement(sql,episode.get)
+    }
+    f
+  }
+  def insertEpisode(episode: Seq[Option[Episode]]) = {
+    var f = Future {
+      println("inserting")
+      var sql = s"INSERT INTO episodes VALUES(?,?,?,?)"
+      episode.map(line => DBManager.executeStatement(sql,line.get)).toSeq
+
+    }
+    f
+
   }
   //database
   def insertTitles = {
     println("inserting titles")
     readFile(ApplicationConstants.TITLE_BASIC_PATH)
-      .map(mapToTitle(_)).runForeach(item => insertTitle(item))
+      .map(mapToTitle(_)).grouped(ApplicationConstants.chunkSize)
+      .mapAsyncUnordered(ApplicationConstants.inParalal)(
+        insertTitle(_)
+      )
   }
 
   def insertPersons = {
     println("inserting persons")
-    readFile(ApplicationConstants.NAME_DATASET_PATH).map(mapToPrincipal(_)).runForeach(item => insertPerson(item))
+    readFile(ApplicationConstants.NAME_DATASET_PATH).map(mapToPrincipal(_)).grouped(ApplicationConstants.chunkSize)
+      .mapAsyncUnordered(ApplicationConstants.inParalal)(
+        insertPerson(_)
+      )
+      //.map(mapToPrincipal(_)).runForeach(item => insertPerson(item))
 
   }
 
   def mapToWork(splited: Array[String]) = {
-    var characters = splited(5).split(",").toVector
-    var category = splited(3)
-    var job : Option[String] = if (splited(4) == "\\N") None else Some(splited(4).toString)
+    try {
 
 
-    //
-    Some(Work(splited(0),splited(1).toInt,splited(2),category,job,characters))
+      var characters = splited(5).split(",").toVector
+      var category = splited(3)
+      var job: Option[String] = if (splited(4) == "\\N") None else Some(splited(4).toString)
+
+
+      //
+      Some(Work(splited(0), splited(1).toInt, splited(2), category, job, characters))
+    }catch {
+      case e : Exception => {
+        ExceptionManager.logExceptionMessage(this.getClass.getName,e,"maptowork")
+        None
+      }
+    }
   }
 
   def insertWorked = {
     readFile(ApplicationConstants.TITLE_PRINICPALS_PATH)
-      .map(mapToWork(_)).runForeach(item => insertWork(item))
+      .map(mapToWork(_)).grouped(ApplicationConstants.chunkSize)
+      .mapAsyncUnordered(ApplicationConstants.inParalal)(
+        insertWork(_)
+      )
   }
 
   def insertEpisodes = {
     readFile(ApplicationConstants.TITLE_EPISODE_PATH)
-      .map(mapToEpisode(_)).runForeach(item => insertEpisode(item))
+      .map(mapToEpisode(_)).grouped(ApplicationConstants.chunkSize)
+      .mapAsyncUnordered(ApplicationConstants.inParalal)(
+        insertEpisode(_)
+      )
   }
-/*
-  def insertPeople(personRepository: PersonRepository[IO]): Source[Unit, _] =
-    RawSources.peopleSource
-      .grouped(Config.insertionChunkSize)
-      .mapAsyncUnordered(Config.insertionParallelism)(
-        personRepository.insertPeople(_).unsafeToFuture()
-      )
 
-  def insertPrincipals(principalRepository: PrincipalRepository[IO]): Source[Unit, _] =
-    RawSources.principalsSource
-      .grouped(Config.insertionChunkSize)
-      .mapAsyncUnordered(Config.insertionParallelism)(
-        principalRepository.insertPrincipals(_).unsafeToFuture()
-      )
-
-  def insertEpisodes(episodeRepository: EpisodeRepository[IO]): Source[Unit, _] =
-    RawSources.episodesSource
-      .grouped(Config.insertionChunkSize)
-      .mapAsyncUnordered(Config.insertionParallelism)(
-        episodeRepository.insertEpisodes(_).unsafeToFuture()
-      )
-
-*/
 }

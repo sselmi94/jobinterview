@@ -1,3 +1,6 @@
+/**
+ * selmi sameh
+ */
 package org.imdb.app
 package utilities
 
@@ -9,6 +12,8 @@ object ApplicationConstants {
   final val TITLE_RATINGS_PATH = "src/main/resources/title.ratings.tsv"
 
 
-  final val chunkSize = 40000
+  final val chunkSize = 50000
+  final val inParalal = 1000
+
 
 }

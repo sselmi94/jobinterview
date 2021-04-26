@@ -1,11 +1,13 @@
+/**
+ * selmi sameh
+ */
 package org.imdb.app
 package core
 
 import core.MovieService.{Principal, TvSeries}
 
-import akka.NotUsed
 import akka.actor.ActorSystem
-import akka.stream.scaladsl.{Broadcast, Concat, FileIO, Flow, Framing, GraphDSL, Keep, Merge, RunnableGraph, Sink, Source}
+import akka.stream.scaladsl.{ Sink, Source}
 import org.imdb.app.utilities.{DBManager, ExceptionManager}
 
 object MovieService extends App {
@@ -52,8 +54,16 @@ object MovieService extends App {
   implicit val system: ActorSystem = ActorSystem("IMDB")
     var impl = new MovieServiceImplementation()
     DBManager.createSchema
-    impl.insertPersons
-    println("hiii")
+    //step 1 Fill database
+    impl.insertPersons.runWith(Sink.last)
+    impl.insertTitles.runWith(Sink.last)
+    impl.insertWorked.runWith(Sink.last)
+    impl.insertEpisodes.runWith(Sink.last)
+    //
+    //now you can run queries
+   // impl.tvSeriesWithGreatestNumberOfEpisodes()
+    //impl.principalsForMovieName("Titanic")
+
   } catch {
     case e : Exception => ExceptionManager.logExceptionMessage(this.getClass.getName,e,"main")
  }

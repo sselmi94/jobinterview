@@ -1,48 +1,74 @@
+/**
+ * selmi sameh
+ */
+
 package org.imdb.app
 package utilities
 
-import akka.stream.scaladsl.Source
 import org.imdb.app.core.MovieService.{Episode, Principal, Title, TvSeries, Work}
 
 import java.sql.{Connection, DriverManager, PreparedStatement, Statement}
 
 
 object DBManager{
-  def getTitleWithLargestEpisode(limit: Int) = {
-    if(database != null){
-      var sql ="SELECT t.*, COUNT(1) as episode_count FROM episodes e"+
-        "JOIN titles t ON t.id = parent_title_id"+
-        "GROUP BY e.parent_title_id"+
-        "ORDER BY episode_count DESC"+
-        "LIMIT ?"
-      var stmt = database.prepareStatement(sql)
-      stmt.setInt(1,limit)
-      stmt.executeUpdate()
-    }
+  def getTitleWithLargestEpisode(limit: Int) : Vector[TvSeries] = {
+    try {
 
+
+      if (database == null) doConnection()
+
+      if (database != null) {
+        var sql = "SELECT t.*, COUNT(1) as episode_count FROM episodes e JOIN titles t ON t.id = parent_title_id GROUP BY e.parent_title_id ORDER BY episode_count DESC LIMIT ?"
+        var stmt = database.prepareStatement(sql)
+        stmt.setInt(1, limit)
+        var rs = stmt.executeQuery()
+        var seq: Vector[TvSeries] = Vector[TvSeries]()
+        while (rs.next()) {
+          val original = rs.getString("original_title")
+          val startyear = rs.getInt("start_year")
+          val endYear = Option(rs.getInt("end_year"))
+          var tv = TvSeries(original, startyear, endYear, null)
+          seq :+ tv
+        }
+        seq
+      }
+      Vector.empty
+    } catch {
+    case e : Exception => {
+      ExceptionManager.logExceptionMessage("", e, "")
+      Vector.empty
+    }
+  }
 
   }
 
-  def getMovies(name: String) = {
+  def getPrinicpals(name: String) : Vector[Principal] =  {
+    try{
+    if(database == null)doConnection()
     if(database != null){
-      var sql =  "SELECT"+
-      "people.id,"+
-      "people.primary_name,"+
-      "people.birth_year,"+
-      "people.death_year,"+
-      "people.primary_profession,"
-      "principals.category,"+
-      "principals.job,"+
-      "principals.characters"+
-      "FROM titles t"+
-      "INNER JOIN principals ON principals.title_id = t.id"+
-      "INNER JOIN people on people.id = principals.person_id"+
-      "WHERE (t.original_title = $movieName OR t.primary_title = ?) AND t.title_type = 'movie'"
+      var sql =  "SELECT persons.id,persons.primary_name,persons.birth_year,persons.death_year,persons.primary_profession FROM titles t INNER JOIN worked ON worked.tconst = t.id INNER JOIN persons on worked.nconst = persons.id WHERE (t.original_title = $movieName OR t.primary_title = ?) AND t.title_type = 'movie'"
       var stmt = database.prepareStatement(sql)
       stmt.setString(1,name)
-      stmt.executeUpdate()
+      var rs = stmt.executeQuery()
 
+      var seq : Vector[Principal] = Vector[Principal]()
+      while (rs.next()) {
+        val id = rs.getString("persons.id")
+        val primary = rs.getString("persons.primary_name")
+        val birthyear = rs.getInt("persons.birth_year")
+        val death =  Option(rs.getInt("persons.death_year"))
+        var prin = Principal(id,primary,birthyear,death,null)
+        seq :+ prin
 
+      }
+      seq
+    }
+      Vector.empty
+    }catch {
+      case e : Exception => {
+        ExceptionManager.logExceptionMessage("", e, "")
+        Vector.empty
+      }
     }
   }
 
@@ -60,10 +86,10 @@ object DBManager{
         ExceptionManager.logExceptionMessage(this.getClass.getName,e,"executeStatemet")}}
   }
 
-  def executeStatement(sql: String,instance : AnyRef) : Int = {
+  def executeStatement(sql: String,instance : AnyRef) : AnyRef = {
     var stmt : PreparedStatement = null
     try {
-      if (database != null) {
+      if(database == null) doConnection()
          stmt = database.prepareStatement(sql)
         instance match {
           case  Principal(_,_,_,_,_) => {
@@ -99,7 +125,6 @@ object DBManager{
             stmt.setString(3,work.nconst )
             stmt.setString(4,work.category )
             stmt.setString(5,work.job.getOrElse("") )
-            stmt.setString(6,work.characters.mkString(","))
 
           }
 
@@ -115,16 +140,12 @@ object DBManager{
 
         }
        stmt.executeUpdate()
+         instance
 
-         1
-      }else {
-        doConnection()
-        0
-      }
     }catch {
       case e : Exception =>  {
-      //  ExceptionManager.logExceptionMessage(this.getClass.getName,e,"executeStatemet")
-      0
+        ExceptionManager.logExceptionMessage(this.getClass.getName,e,"executeStatemet")
+      None
 
       }
     }finally {
@@ -173,6 +194,7 @@ object DBManager{
       ordering INT,
       category VARCHAR(256),
       job VARCHAR(256),
+      characters TEXT,
       FOREIGN KEY(tconst) REFERENCES titles(id),
       FOREIGN KEY(nconst) REFERENCES persons(id),
       PRIMARY KEY (tconst,nconst)
@@ -181,7 +203,7 @@ object DBManager{
   def doConnection() = {
     try {
       database =
-        DriverManager.getConnection("jdbc:sqlite:imdb.db")
+        DriverManager.getConnection("jdbc:sqlite:test.db")
       createSchema
 
     } catch {
